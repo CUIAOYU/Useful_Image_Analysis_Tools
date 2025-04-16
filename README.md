@@ -150,7 +150,6 @@ The SAM Processing feature requires a pre-trained Segment Anything Model file (`
     python [your_main_script_name].py
     # e.g., python main_gui.py or the actual script name
     ```
-    *Replace `[your_main_script_name].py` with the actual filename of the Python script.*
 4.  **Familiarize Yourself with the GUI**: The application window will appear.
     * **Left Panel**: Control area with function tabs, file/folder selection buttons, parameter sliders/checkboxes, etc.
     * **Right Panel**: Log area displaying progress, information, and error messages.
