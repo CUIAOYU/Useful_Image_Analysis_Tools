@@ -1,6 +1,6 @@
 # Useful Image Analysis Tool Integration (基于 SAM 和 PyQt)
 
-这是一个使用 PyQt6 构建的图形用户界面 (GUI) 工具。它旨在简化和加速科研或实验中常见的图像分析与处理任务，特别是针对需要批量处理大量图像（如显微照片、组织切片扫描图等）的场景。它可以帮助您自动提取定量信息、比较图像特征或改善图像视觉效果。
+这是一个使用 PyQt6 构建的图形用户界面 (GUI) 工具，旨在简化和加速科研或实验中常见的图像分析与处理任务，特别是针对需要批量处理大量图像（如显微照片、组织切片扫描图等）的场景。它可以帮助您自动提取定量信息、比较图像特征或改善图像视觉效果。
 
 ## 主要功能
 
@@ -106,8 +106,8 @@
 
 1.  **克隆仓库**:
     ```bash
-    git clone [你的 GitHub 仓库 URL]
-    cd [克隆下来的目录名]
+    git clone [https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration.git](https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration.git)
+    cd Useful-Image-Analysis-Tool-Integration
     ```
     *请将 `[你的 GitHub 仓库 URL]` 替换为你的仓库实际地址。*
     *请将 `[克隆下来的目录名]` 替换为仓库克隆后在本地的文件夹名称。*
@@ -171,14 +171,12 @@
 
 欢迎各种形式的贡献！
 
-* **报告 Bug 或提出建议**: 如果您在使用中发现任何问题，或者有改进功能的想法，请通过 GitHub 的 [Issues]([你的 GitHub 仓库 URL]/issues) 页面提交。请尽可能详细地描述问题或建议，包括复现步骤、截图（如果适用）、您的操作系统和软件版本等信息。
+* **报告 Bug 或提出建议**: 如果您在使用中发现任何问题，或者有改进功能的想法，请通过 GitHub 的 [Issues](https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration/issues) 页面提交。请尽可能详细地描述问题或建议，包括复现步骤、截图（如果适用）、您的操作系统和软件版本等信息。
 * **提交代码**: 如果您希望直接改进代码，请遵循标准的 GitHub Fork & Pull Request 流程。建议先创建一个 Issue 讨论您想要进行的更改。
 
 ## 报告问题 (Reporting Issues)
 
-如果您遇到任何 Bug 或有功能请求，请在本仓库的 [Issues]([你的 GitHub 仓库 URL]/issues) 页面创建新的 Issue。这是获取支持和反馈的主要途径。
-
-*请将 `[你的 GitHub 仓库 URL]` 替换为你的仓库实际地址。*
+如果您遇到任何 Bug 或有功能请求，请在本仓库的 [Issues](https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration/issues) 页面创建新的 Issue。这是获取支持和反馈的主要途径。
 
 ## 许可证 (License)
 
