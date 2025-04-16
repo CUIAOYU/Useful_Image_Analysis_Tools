@@ -1,0 +1,24 @@
+# Core GUI and Processing
+# PyQt6 for the graphical user interface
+PyQt6
+# OpenCV for image processing tasks
+opencv-python
+# NumPy for numerical operations, especially array handling
+numpy
+# Pillow for image file handling and manipulation (like contrast)
+Pillow
+# Tifffile for reading TIFF format images
+tifffile
+
+# Machine Learning / Segmentation
+# PyTorch as the deep learning framework dependency for SAM
+torch
+# Torchvision might be needed by SAM or for related image transforms
+torchvision
+# The main Segment Anything library
+segment-anything
+
+# Optional (for RLE mask processing in segment-anything)
+# Pycocotools is needed if you use 'uncompressed_rle' or 'coco_rle' output modes from SAM
+# Installation might require C++ build tools on Windows
+pycocotools
