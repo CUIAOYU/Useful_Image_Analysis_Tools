@@ -91,43 +91,53 @@ This is a Graphical User Interface (GUI) tool built with PyQt6, designed to simp
 * **Python**: Developed and tested with **Python 3.11.9**. Python 3.9+ is recommended.
 * **Operating System**: Windows 10 or Windows 11 recommended.
 * **Hardware**: For reasonable SAM processing performance (using GPU acceleration), an NVIDIA GPU equivalent to at least a GeForce RTX 3060 is recommended. CPU execution is possible but will be significantly slower.
-* **Key Dependencies**:
-    * PyQt6
-    * OpenCV (opencv-python)
-    * NumPy
-    * Pillow
-    * Torch & Torchvision
-    * Segment Anything (segment-anything)
-    * Tifffile
-    * Pycocotools
-* See the `requirements.txt` file for a detailed list of dependencies.
+* **Key Dependencies**: You will need to install the following Python packages:
+    * `PyQt6`
+    * `opencv-python`
+    * `numpy`
+    * `Pillow`
+    * `torch`
+    * `torchvision`
+    * `segment-anything`
+    * `tifffile`
+    * `pycocotools` (optional, but recommended for full SAM functionality)
 
 ## Installation
 
-1.  **Clone the Repository**:
+**Prerequisites:**
+
+* **Install Git:** You need [Git](https://git-scm.com/downloads) installed on your system to use the `git clone` command.
+* **Install Python:** Ensure you have a compatible Python version installed (developed with Python 3.11.9, recommend 3.9+). You can check your version by running `python --version` or `python -V` in your terminal or command prompt.
+
+**Installation Steps:**
+
+1.  **Clone the Repository**: Open your terminal or command prompt and run the following commands to download the code:
     ```bash
     git clone [https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration.git](https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration.git)
     cd Useful-Image-Analysis-Tool-Integration
     ```
-2.  **(Recommended) Create and Activate a Python Virtual Environment**:
+2.  **(Recommended) Create and Activate a Python Virtual Environment**: To avoid conflicts between project dependencies, it's highly recommended to create a virtual environment:
     ```bash
     # Create virtual environment (e.g., named venv)
     python -m venv venv
 
     # Activate virtual environment
-    # Windows (cmd/powershell)
+    # Windows (cmd/powershell):
     .\venv\Scripts\activate
-    # macOS/Linux (bash/zsh)
+    # macOS/Linux (bash/zsh):
     source venv/bin/activate
     ```
-    *Using a virtual environment isolates project dependencies and avoids conflicts.*
-3.  **Install Dependencies**:
+    *All subsequent `pip install` commands should be run **after** activating the virtual environment.*
+3.  **Install Dependencies**: You need to manually install the required packages using pip. Run:
     ```bash
-    pip install -r requirements.txt
+    pip install PyQt6 opencv-python numpy Pillow torch torchvision segment-anything tifffile pycocotools
     ```
-    * **Note**:
-        * Installation of `torch` and `torchvision` might need specific commands depending on your OS and CUDA version (if using GPU). Please refer to the [Official PyTorch Website](https://pytorch.org/) for the appropriate command for your system. You might want to install PyTorch/Torchvision manually first (after potentially removing them from `requirements.txt`) and then run `pip install -r requirements.txt` for the rest.
-        * Installing `pycocotools` on Windows may require pre-installing Microsoft C++ Build Tools.
+    * **Dependency Installation Notes & Common Issues**:
+        * **PyTorch/Torchvision**: The installation of these libraries depends heavily on your operating system, whether you have an NVIDIA GPU, and your CUDA version. It is **strongly recommended** to first visit the [Official PyTorch Website](https://pytorch.org/), get the **official recommended installation command** for your specific environment (OS, Package, Compute Platform), and execute that command **separately first** to install PyTorch and Torchvision. Afterward, you can run the `pip install ...` command above for the remaining packages (you can omit torch and torchvision from it).
+        * **Pycocotools**: Installing `pycocotools` on Windows might require pre-installing Microsoft C++ Build Tools. If you encounter compilation errors, search for the specific error message online for solutions. Alternatively, if your use case doesn't involve RLE-formatted masks, you might skip installing it (but some SAM output modes will be unavailable).
+        * **Other Errors**: If you encounter issues installing other libraries, carefully read the error messages provided by pip, as they often contain clues for resolving the problem.
+
+4.  **(Optional) Verify Installation**: After installing all dependencies, you can try running the main script (see step 3 in "Usage") to see if the GUI launches successfully. This serves as a basic verification that the installation was successful.
 
 ## SAM Model Setup - Important!
 
