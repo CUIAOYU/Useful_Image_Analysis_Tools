@@ -68,7 +68,7 @@
         * **`pred_iou_thresh`** (预测 IoU 阈值, 默认 0.88): SAM 对自己找到的区域打的分数 (0-1)，表示它有多自信这个区域找对了。**值越高 (接近1)，要求越严**，结果噪点少，但可能把一些模糊的或者不太确定的目标漏掉。**值越低，要求越松**，可能找回一些目标，但也可能引入更多错误分割。
         * **`stability_score_thresh`** (稳定性阈值, 默认 0.95): 衡量找到的区域边界稳不稳固 (0-1)。稍微变动一下判断标准，形状会不会大变？**值越高，要求边界越稳定清晰**，结果更可靠，但可能丢掉边界模糊的目标。**值越低，能容忍更模糊的边界**，可能找回这类目标，但也可能得到形状奇怪的结果。
         * **`stability_score_offset`** (稳定性偏移, 默认 1.0): 计算稳定性分数时用的一个内部参数，**一般不用改**。
-        * **`box_nms_thresh`** (包围盒 NMS 阈值, 默认 0.7): 防止同一个物体被画上好几个框。如果两个框重叠度高于这个值，就可能只保留一个。**值越低，去重越狠**，可能把靠太近的不同物体当成一个；**值越高，越容忍重叠**，可能同一个物体出好几个框。**默认值通常挺好，一般不用改**。
+        * **`box_nms_thresh`** (包围盒 NMS 阈值, 默认 0.7): 防止同一个物体被画上好几个框。如果两个框重叠度高于这个值，就可能只保留一个。**值越低，去重越狠**，可能把靠太近 不同物体当成一个；**值越高，越容忍重叠**，可能同一个物体出好几个框。**默认值通常挺好，一般不用改**。
         * **`crop_n_layers`** (裁剪层数, 默认 0): 处理超大图片的“切块”开关。**0 表示不切**，对整图处理。**设为 1 或更大**，会把大图切成很多重叠的小块分别处理再拼起来。优点是**能处理内存/显存装不下的大图**，缺点是**速度会慢很多很多**，而且拼接处可能不太自然。**只在处理超大图片遇到内存问题时，才考虑设为 1**。
         * **`crop_nms_thresh`** (裁剪 NMS 阈值, 默认 0.7): 切块模式下，合并小块结果时用的去重叠阈值。**一般不用改**。
         * **`crop_overlap_ratio`** (裁剪重叠率, 默认 ~0.341): 切块模式下，小块之间重叠部分的比例。**一般不用改**。
@@ -91,43 +91,53 @@
 * **Python**: 本项目在 **Python 3.11.9** 版本下开发和测试。建议使用 Python 3.9+。
 * **操作系统**: 建议使用 Windows 10 或 Windows 11。
 * **硬件**: 为了获得较好的 SAM 处理性能（如果使用 GPU 加速），建议使用 NVIDIA 显卡，性能至少达到 GeForce RTX 3060 或同等水平。CPU 也可以运行，但速度会慢很多。
-* **主要依赖库**:
-    * PyQt6
-    * OpenCV (opencv-python)
-    * NumPy
-    * Pillow
-    * Torch & Torchvision
-    * Segment Anything (segment-anything)
-    * Tifffile
-    * Pycocotools
-* 详细依赖请参见 `requirements.txt` 文件。
+* **主要依赖库**: 您需要安装以下 Python 包：
+    * `PyQt6`
+    * `opencv-python`
+    * `numpy`
+    * `Pillow`
+    * `torch`
+    * `torchvision`
+    * `segment-anything`
+    * `tifffile`
+    * `pycocotools` (可选, 但建议安装以获得完整的 SAM 功能)
 
 ## 安装 (Installation)
 
-1.  **克隆仓库**:
+**前提条件:**
+
+* **安装 Git:** 你需要先在你的系统上安装 [Git](https://git-scm.com/downloads)，才能使用 `git clone` 命令下载代码。
+* **安装 Python:** 确保你安装了符合版本要求的 Python (本项目基于 Python 3.11.9 开发，建议 3.9+)。你可以在终端或命令行运行 `python --version` 或 `python -V` 来检查你的版本。
+
+**安装步骤:**
+
+1.  **克隆仓库**: 打开终端或命令行，执行以下命令将代码下载到本地：
     ```bash
     git clone [https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration.git](https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration.git)
     cd Useful-Image-Analysis-Tool-Integration
     ```
-2.  **(推荐) 创建并激活 Python 虚拟环境**:
+2.  **(推荐) 创建并激活 Python 虚拟环境**: 为了避免不同项目间的库冲突，强烈建议创建一个虚拟环境：
     ```bash
     # 创建虚拟环境 (例如命名为 venv)
     python -m venv venv
 
     # 激活虚拟环境
-    # Windows (cmd/powershell)
+    # Windows (cmd/powershell):
     .\venv\Scripts\activate
-    # macOS/Linux (bash/zsh)
+    # macOS/Linux (bash/zsh):
     source venv/bin/activate
     ```
-    *使用虚拟环境可以隔离项目依赖，避免不同项目间库版本冲突。*
-3.  **安装依赖库**:
+    *后续的 `pip install` 命令都应在**激活虚拟环境后**执行。*
+3.  **安装依赖库**: 您需要手动使用 pip 安装所需的包。运行：
     ```bash
-    pip install -r requirements.txt
+    pip install PyQt6 opencv-python numpy Pillow torch torchvision segment-anything tifffile pycocotools
     ```
-    * **注意**:
-        * `torch` 和 `torchvision` 的安装可能需要根据你的操作系统和是否有 NVIDIA GPU (以及对应的 CUDA 版本) 进行调整。请优先访问 [PyTorch 官方网站](https://pytorch.org/) 获取适合你环境的安装命令。你可以先从 `requirements.txt` 中移除 torch 和 torchvision 行，手动安装这两个库之后，再运行 `pip install -r requirements.txt` 安装其余依赖。
-        * `pycocotools` 在 Windows 上安装可能需要预先安装 Microsoft C++ Build Tools。
+    * **依赖安装说明与常见问题**:
+        * **PyTorch/Torchvision**: 这两个库的安装与你的操作系统、是否使用 NVIDIA GPU 及 CUDA 版本密切相关。**强烈建议**先访问 [PyTorch 官方网站](https://pytorch.org/)，根据你的具体环境（OS, Package, Compute Platform）获取**官方推荐的安装命令**，并**首先单独执行**这个命令来安装 PyTorch 和 Torchvision。之后再运行上面的 `pip install ...` 命令安装其余的包（可以省略掉 torch 和 torchvision）。
+        * **Pycocotools**: 在 Windows 上安装 `pycocotools` 可能需要预先安装 Microsoft C++ Build Tools。如果遇到编译错误，请搜索相关错误信息查找解决方案，或者如果你的应用场景不涉及 RLE 格式的掩码，可以暂时不安装它（但 SAM 的某些输出模式将不可用）。
+        * **其他错误**: 如果安装其他库时遇到问题，请仔细阅读 pip 输出的错误信息，通常会包含解决问题的线索。
+
+4.  **(可选) 验证安装**: 安装完所有依赖后，可以尝试运行主程序（参考“如何使用”部分的第3步）看是否能成功启动 GUI 界面，以此作为安装成功的基本验证。
 
 ## SAM 模型设置 (SAM Model Setup) - 重要!
 
