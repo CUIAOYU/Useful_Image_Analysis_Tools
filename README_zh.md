@@ -53,7 +53,7 @@
     * **两阶段阈值过滤与区域属性计算 (根据代码逻辑修正)**:
         * **阶段一：基于区域整体属性的过滤 (由 A/I/R Threshold 控制)**:
             * 程序首先计算 SAM 生成的**每个**区域的**初始**属性值（基于该区域**所有**像素计算）：初始面积 (`initial_area`)、初始强度 (`initial_intensity`)、初始比率 (`initial_ratio`)。
-            * 根据用户是否勾选了 "Area", "Intensity & Ratio" 复选框，程序会检查这些初始值是否满足用户设定的最小阈值 (`A Threshold`, `I Threshold`, `R Threshold`)。
+            * 根据用户是否勾选了 "Area", "Intensity" 复选框，程序会检查这些初始值是否满足用户设定的最小阈值 (`A Threshold`, `I Threshold`, `R Threshold`)。
             * 如果一个区域的初始属性值**未能**满足所有启用的阈值要求，则该区域**直接被过滤掉**，不进入下一阶段。
         * **阶段二：基于像素聚合度的过滤 (由 Min/Max Aggregate Threshold 控制)**:
             * 对于**通过了阶段一**的区域，程序会进一步检查其内部的**每个像素**。
