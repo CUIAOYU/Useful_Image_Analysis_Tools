@@ -1191,14 +1191,16 @@ class UsefulImageAnalysisToolIntegration(QMainWindow):
         # Checkboxes to enable/disable A/I/R calculations and filtering (Phase 1)
         metrics_layout = QHBoxLayout()
         metrics_layout.setSpacing(15)
-        self.area_check = QCheckBox("Area (pixel count)")
-        self.area_check.setStyleSheet("font-weight: normal;") # Normal font weight for checkbox text
-        self.area_check.setChecked(True) # Enabled by default
+        # --- MODIFICATION: Simplified Checkbox Labels ---
+        self.area_check = QCheckBox("Area") # Simplified label
+        self.area_check.setStyleSheet("font-weight: normal;")
+        self.area_check.setChecked(True)
         self.area_check.stateChanged.connect(self.on_calculation_method_changed)
         metrics_layout.addWidget(self.area_check)
-        self.intensity_check = QCheckBox("Intensity & Ratio") # Combined label
+        self.intensity_check = QCheckBox("Intensity") # Simplified label (Note: Still controls Ratio filter too)
+        # --- END MODIFICATION ---
         self.intensity_check.setStyleSheet("font-weight: normal;")
-        self.intensity_check.setChecked(True) # Enabled by default
+        self.intensity_check.setChecked(True)
         self.intensity_check.stateChanged.connect(self.on_calculation_method_changed)
         metrics_layout.addWidget(self.intensity_check)
         metrics_layout.addStretch() # Push checkboxes to the left
