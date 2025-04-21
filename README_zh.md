@@ -37,10 +37,10 @@
     * **聚合值计算**: 对整个灰度图像计算每个像素的“聚合度” (0-100范围，如上所述)。
     * **基于阈值的热力图可视化**:
         * 用户设定**最小聚合度阈值 (`Min Aggregate Threshold`)** 和**最大聚合度阈值 (`Max Aggregate Threshold`)**，定义感兴趣的聚合度分数区间 [最低值, 最高值]。
-        * **阈值与颜色映射逻辑 (恢复为旧版描述并添加颜色)**:
-            * 聚合度**低于**最低值的像素：显示为 <span style="color:black; font-weight:bold;">黑色</span> (代表信号过低或背景)。
-            * 聚合度**高于**最高值的像素：显示为 <span style="color:red; font-weight:bold;">亮红色</span> (代表信号饱和或聚集)。
-            * 聚合度**介于** [最低值, 最高值] 区间内的像素：根据其相对位置，颜色从 <span style="color:purple; font-weight:bold;">紫色</span> (接近最低值) -> <span style="color:blue; font-weight:bold;">蓝色</span> -> <span style="color:green; font-weight:bold;">绿色</span> -> <span style="color:gold; font-weight:bold;">黄色</span> -> <span style="color:orange; font-weight:bold;">橙色</span> -> <span style="color:red; font-weight:bold;">红色</span> (接近最高值) 平滑过渡。
+        * **阈值与颜色映射逻辑 (根据代码实现修正)**:
+            * 聚合度**低于**最低值的像素：显示为**黑色** (默认背景色)。
+            * 聚合度**高于**最高值的像素：显示为**亮红色**。
+            * 聚合度**介于** [最低值, 最高值] 区间内的像素：根据其相对位置，颜色从 **绿色** (接近最低值，聚合度低/较亮) 平滑过渡到 **黄色/橙色** 再到 **红色** (接近最高值，聚合度高/较暗)。(代码实现基于 HSV 颜色空间的 Hue 值映射)。
         * **目的**: 通过调整阈值聚焦可视化范围，有效过滤背景或饱和区域，突出目标区域的分布和强度变化。
     * **应用场景示例**:
         * 在组织切片图像上，用颜色直观显示不同区域的染色强度或特定分子表达水平（若与聚合度相关）。
