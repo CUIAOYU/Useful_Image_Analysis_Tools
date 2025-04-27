@@ -1,4 +1,4 @@
-# Useful Image Analysis Tool Integration (基于 SAM 和 PyQt)
+# Useful Image Analysis Tools
 
 这是一个使用 PyQt6 构建的图形用户界面 (GUI) 工具，目的是为了简化和加速科研或实验中常见的图像分析与处理任务，特别是针对需要批量处理大量图像（如显微照片、组织切片扫描图等）的场景。它可以帮你自动提取定量信息、比较图像特征或改善图像视觉效果。
 
@@ -67,59 +67,86 @@
 
 ## 系统要求
 
-* **Python**: 最好用 **Python 3.9 或更高版本** (我开发测试用的是 3.11.9)。
 * **操作系统**: 推荐 Windows 10 或 11。
-* **硬件**: 如果要用 SAM 处理，并且想快一点（用 GPU 加速），建议有 NVIDIA 显卡，至少是 GeForce RTX 3060 或差不多的水平。只用 CPU 也能跑，就是会慢很多。
-* **需要装的库**:
-    * `PyQt6`
-    * `opencv-python`
-    * `numpy`
-    * `Pillow`
-    * `torch`
-    * `torchvision`
-    * `segment-anything`
-    * `tifffile` (**推荐装**: 支持 TIFF 图片格式)
-    * `pycocotools` (**可选**: 如果不需要处理 RLE 格式掩码就不用装)
+* **Anaconda**: 需要预先安装 Anaconda Navigator 或 Miniconda。我们将使用 Conda 来创建和管理运行环境。
+* **Python 版本**: 推荐使用 **Python 3.11**。
+* **硬件**:
+    * 如果希望使用 SAM 处理功能并获得较快速度 (GPU 加速)，建议配备 **NVIDIA 显卡**，至少是 GeForce RTX 3060 或同等性能水平。
+    * 如果没有 NVIDIA 显卡，SAM 功能仍然可以在 CPU 上运行，但速度会**慢很多**。其他非 SAM 功能对硬件要求不高。
+* **需要安装的 Python 库**:
+    * `PyQt6` (用于图形界面)
+    * `opencv-python` (用于图像处理)
+    * `numpy` (用于数值计算)
+    * `Pillow` (用于图像文件读写)
+    * `torch` (PyTorch 核心库)
+    * `torchvision` (PyTorch 视觉库)
+    * `segment-anything` (Meta AI 的 SAM 库)
+    * `tifffile` (**推荐安装**: 用于支持读取 `.tif` 或 `.tiff` 格式的图像)
+    * `pycocotools` (**可选**: 如果你不需要处理 COCO 数据集格式或 RLE 格式的掩码，可以不安装。Windows 下安装可能需要额外配置编译环境。)
 
-## 安装指南
+## 安装指南 (使用 Anaconda Navigator 和 Pip)
 
-**准备工作:**
+**第 1 步：安装 Anaconda**
 
-* **装 Git:** 你得先装好 [Git](https://git-scm.com/downloads)，才能用 `git clone` 把代码下下来。
-* **装 Python:** 确保你的 Python 版本符合要求 (推荐 3.9+)。命令行里敲 `python --version` 查一下。
+* 如果你电脑上还没有安装 Anaconda，请前往 [Anaconda Distribution 官网](https://www.anaconda.com/products/distribution) 下载适合你 Windows 系统的安装包。
+* 下载后运行安装程序，按照提示完成安装。对于大多数选项，保持默认设置即可。
 
-**步骤:**
+**第 2 步：创建新的工作环境 (使用 Anaconda Navigator)**
 
-1.  **下载代码**: 打开命令行，运行：
-    ```bash
-    git clone [https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration.git](https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration.git)
-    cd Useful-Image-Analysis-Tool-Integration
-    ```
+环境就像一个独立的“房间”，我们在这个“房间”里安装这个工具需要的所有软件库，这样可以避免和你电脑上其他 Python 项目的库发生冲突。
 
-2.  **(推荐) 创建虚拟环境**: 为了不和别的项目搞混库版本，最好给这个项目单独创建一个虚拟环境：
-    ```bash
-    # 创建 (比如叫 venv)
-    python -m venv venv
+1.  **打开 Anaconda Navigator**: 在 Windows 开始菜单中找到并启动 "Anaconda Navigator"。它第一次启动可能需要一些时间。
+2.  **进入环境管理界面**: 在 Navigator 窗口的左侧菜单栏中，点击 **"Environments"** 选项卡。
+3.  **创建新环境**:
+    * 在环境列表（初始可能只有 "base (root)"）的下方，找到并点击 **"Create"** (带有加号图标) 按钮。
+    * 会弹出一个名为 "Create new environment" 的小窗口。
+    * 在 **"Name"** 输入框中，为你的新环境起一个名字，例如 `image_tool` 。
+    * 在下方的 "Packages" 部分，确保 **Python** 被选中。点击右侧的版本号下拉菜单，选择 **3.11**。确认名称和 Python 版本无误后，点击窗口右下角的 **"Create"** 按钮。
+    * Anaconda 会开始创建环境并安装指定版本的 Python 及一些基础包。请耐心等待，这可能需要几分钟。创建成功后，你会在左侧环境列表中看到你新创建的 `image_tool` 环境。
 
-    # 激活
-    # Windows (cmd/powershell):
-    .\venv\Scripts\activate
-    # macOS/Linux (bash/zsh):
-    source venv/bin/activate
-    ```
-    *后面的 `pip install` 都要在**激活环境后**进行。*
+**第 3 步：安装工具需要的库 (使用 Pip 在环境中安装)**
 
-3.  **安装依赖**: 用 pip 把需要的库装上。运行：
-    ```bash
-    pip install PyQt6 opencv-python numpy Pillow torch torchvision segment-anything tifffile pycocotools
-    ```
-    * **安装提示和常见问题**:
-        * **PyTorch/Torchvision**: 这俩的安装比较讲究，跟你的系统、有没有 N 卡、CUDA 版本都有关。**强烈建议**先去 [PyTorch 官网](https://pytorch.org/)，根据你的环境（系统、包管理器、计算平台选 CUDA 或 CPU）找到**官方给的安装命令**，**单独先执行**这个命令装好 PyTorch 和 Torchvision。然后再运行上面的 `pip install ...` 命令装剩下的（可以去掉 torch 和 torchvision）。
-        * **Pycocotools**: Windows 上装这个可能需要先装 Microsoft C++ Build Tools。如果报错，要么想办法解决编译环境，要么如果用不到 RLE 格式，干脆不装它（程序会给个警告但能运行）。
-        * **Tifffile**: 不装的话，就读不了 `.tif` 或 `.tiff` 格式的图片。
-        * **其他库报错**: 仔细看 pip 的报错信息，通常里面有线索。
+现在我们需要进入刚刚创建的 `image_tool` 环境，并安装所有必需的 Python 库。我们将使用 `pip` 这个 Python 包管理工具来完成。
 
-4.  **(可选) 检查一下**: 装完后，试试运行主程序（看下面“如何使用”第 3 步），如果界面能成功打开，基本就说明装好了。
+1.  **打开环境专属的命令行终端 (Terminal)**:
+    * 在 Anaconda Navigator 的 "Environments" 界面，从左侧列表中**点击选中**你刚刚创建的 `image_tool` 环境 (确保它处于高亮状态)。
+    * 在中间区域顶部，环境名称 `image_tool` 的右侧，你会看到一个**绿色的播放按钮 (▶️)** 或者一个**向下的小箭头 (🔽)**。点击这个按钮/箭头。
+    * 在弹出的菜单中，选择 **"Open Terminal"**。
+    * 系统会打开一个**黑色背景的命令行窗口** (CMD 或 PowerShell)。你会注意到窗口的提示符最前面带有 `(image_tool)` 字样，这表示你当前的操作都是在这个独立的环境中进行的。**接下来的所有安装命令都必须在这个窗口中执行**。
+
+2.  **安装 PyTorch (核心库，按官网建议)**:
+    * **非常重要**: PyTorch 的安装与你的硬件（特别是显卡）和所需的 CUDA 版本紧密相关。**强烈建议**按照 PyTorch 官网的最新指示进行安装。
+    * **打开你的网页浏览器**，访问 PyTorch 官方网站：<https://pytorch.org/>
+    * 在官网首页找到 "Get Started" 或类似的安装指引区域。
+    * 根据你的情况进行选择：
+        * **PyTorch Build**: 通常选择 **Stable** (稳定版)。
+        * **Your OS**: 选择 **Windows**。
+        * **Package**: **选择 Pip** (根据我们之前的经验和官网提示，通常推荐使用 Pip)。
+        * **Language**: 选择 **Python**。
+        * **Compute Platform**:
+            * 如果你的电脑装有 **NVIDIA 显卡** 并且希望使用 GPU 加速 (推荐)，请选择一个 **CUDA** 版本 (如 CUDA 11.8 或 12.1)。
+            * 如果你的电脑**没有 NVIDIA 显卡**，或者你不确定，或者你只想使用 CPU 进行计算，请选择 **CPU**。
+    * 当你完成以上选择后，页面下方 **"Run this Command:"** 部分会**自动生成**一条安装命令。这条命令通常是以 `pip install torch torchvision torchaudio ...` 开头的。
+    * **仔细地、完整地复制这条生成的 `pip install ...` 命令**。
+    * **回到你刚才打开的那个带有 `(image_tool)` 前缀的黑色命令行窗口**。
+    * **将复制的命令粘贴到窗口中** (通常可以通过在窗口内单击鼠标右键来粘贴)。
+    * 按下键盘上的 **回车键 (Enter)** 执行命令。
+    * `pip` 会开始下载并安装 PyTorch 及其相关的库。这可能需要较长时间，取决于你的网络速度和下载文件的大小。请耐心等待，直到命令执行完毕并且没有显示错误信息。
+
+3.  **安装其他必需的库**:
+    * 在**同一个黑色命令行窗口**中 (确保上一步的 PyTorch 安装成功完成后)，**复制并粘贴**以下命令：
+        ```bash
+        pip install PyQt6 opencv-python numpy Pillow segment-anything tifffile pycocotools
+        ```
+    * 按下 **回车键 (Enter)**。
+    * `pip` 会开始下载并安装列表中的其他库：PyQt6 (图形界面), opencv-python (图像处理), numpy (科学计算), Pillow (基础图像库), segment-anything (SAM 模型库), tifffile (TIFF 文件支持), pycocotools (COCO 工具)。
+    * 请耐心等待所有库下载和安装完成。
+    * *(安装提示与常见问题)*:
+        * `pycocotools`: 在 Windows 上安装 `pycocotools` 有时会因为缺少 C++ 编译环境而失败。如果你遇到关于 `cl.exe` 或 `Microsoft C++ Build Tools` 的错误，可以尝试先安装 Microsoft C++ Build Tools (可以从 Visual Studio Installer 中获取)。如果你确认用不到 COCO 数据集或 RLE 格式掩码，也可以选择不安装它，只需在上面的命令中去掉 `pycocotools` 即可：`pip install PyQt6 opencv-python numpy Pillow segment-anything tifffile`。程序在缺少它时会给出警告，但核心功能仍可运行。
+        * `tifffile`: 如果不安装，将无法读取 `.tif` 或 `.tiff` 格式的图像。
+        * 网络问题: 如果下载速度很慢或失败，可能是网络原因。
+
+4.  **关闭命令行窗口**: 当所有库都成功安装后 (命令行不再滚动，并回到 `(image_tool) C:\Users\YourUsername>` 这样的提示符状态)，你可以输入 `exit` 命令并按回车，或者直接点击窗口右上角的 "X" 按钮关闭这个黑色窗口。
 
 ## SAM 模型设置 - 重要!
 
@@ -137,8 +164,8 @@ SAM 处理功能需要预训练的模型文件 (`.pth`)。**这些文件很大�
 ## 如何使用
 
 1.  **准备**: 确保依赖库都装好了，SAM 模型也下载好了。
-2.  **激活环境**: 如果用了虚拟环境，先激活。
-3.  **运行**: 在项目文件夹根目录，打开命令行，运行主脚本：
+2.  **激活环境**: 如果用了虚拟环境，先激活。 (我们通过 Anaconda Navigator 打开的 Terminal 已经自动激活了 `image_tool` 环境)
+3.  **运行**: 在项目文件夹根目录，打开命令行 (参照安装步骤第 3 步第 1 点打开 `image_tool` 环境的 Terminal)，运行主脚本：
     ```bash
     python 你的主脚本文件名.py
     # 比如: python main_gui.py (具体看你的文件名是啥)
@@ -169,3 +196,4 @@ SAM 处理功能需要预训练的模型文件 (`.pth`)。**这些文件很大�
 ## 许可证
 
 本项目使用 **MIT 许可证**。具体看 `LICENSE` 文件。
+
