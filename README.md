@@ -122,7 +122,7 @@ Now we need to enter the `image_tool` environment we just created and install al
     * Make selections based on your system:
         * **PyTorch Build**: Usually select **Stable**.
         * **Your OS**: Select **Windows**.
-        * **Package**: **Select Pip** (Based on our previous experience and official guidance, Pip is often recommended).
+        * **Package**: **Select Pip** (Based on my previous experience and official guidance, Pip is often recommended).
         * **Language**: Select **Python**.
         * **Compute Platform**:
             * If your computer has an **NVIDIA GPU** (e.g., GeForce RTX series) and you want to use GPU acceleration (recommended for speed), select a **CUDA** version (e.g., CUDA 11.8 or 12.1).
