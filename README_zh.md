@@ -121,7 +121,7 @@
     * 根据你的情况进行选择：
         * **PyTorch Build**: 通常选择 **Stable** (稳定版)。
         * **Your OS**: 选择 **Windows**。
-        * **Package**: **选择 Pip** (根据我们之前的经验和官网提示，通常推荐使用 Pip)。
+        * **Package**: **选择 Pip** (根据我之前的经验和官网提示，通常推荐使用 Pip)。
         * **Language**: 选择 **Python**。
         * **Compute Platform**:
             * 如果你的电脑装有 **NVIDIA 显卡** 并且希望使用 GPU 加速 (推荐)，请选择一个 **CUDA** 版本 (如 CUDA 11.8 或 12.1)。
