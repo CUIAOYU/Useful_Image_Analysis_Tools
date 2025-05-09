@@ -68,7 +68,7 @@
 ## 系统要求
 
 * **操作系统**: 推荐 Windows 10 或 11。
-* **Anaconda**: 需要预先安装 Anaconda Navigator 或 Miniconda。我们将使用 Conda 来创建和管理运行环境。
+* **Anaconda**: 需要预先安装 Anaconda Navigator。
 * **Python 版本**: 推荐使用 **Python 3.11**。
 * **硬件**:
     * 如果希望使用 SAM 处理功能并获得较快速度 (GPU 加速)，建议配备 **NVIDIA 显卡**，至少是 GeForce RTX 3060 或同等性能水平。
