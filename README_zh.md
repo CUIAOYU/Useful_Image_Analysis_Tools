@@ -192,8 +192,3 @@ SAM 处理功能需要预训练的模型文件 (`.pth`)。**这些文件很大�
 ## 报告问题
 
 遇到 Bug 或有功能需求，请直接在仓库的 [Issues](https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration/issues) 页面开新的 Issue。
-
-## 许可证
-
-本项目使用 **MIT 许可证**。具体看 `LICENSE` 文件。
-
