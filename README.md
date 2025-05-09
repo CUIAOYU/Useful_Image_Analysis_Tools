@@ -193,7 +193,3 @@ Contributions of all forms are very welcome!
 ## Reporting Issues
 
 For bugs or feature requests, please open a new Issue directly on the repository's [Issues](https://github.com/CUIAOYU/Useful-Image-Analysis-Tool-Integration/issues) page.
-
-## License
-
-This project is licensed under the **MIT License**. See the `LICENSE` file for details.
