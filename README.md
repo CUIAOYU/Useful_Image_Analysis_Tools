@@ -68,7 +68,7 @@ This is a Graphical User Interface (GUI) tool built with PyQt6, designed to simp
 ## System Requirements
 
 * **Operating System**: Windows 10 or 11 recommended.
-* **Anaconda**: Anaconda Navigator or Miniconda needs to be pre-installed. We will use Conda to create and manage the runtime environment.
+* **Anaconda**: Anaconda Navigator.
 * **Python Version**: **Python 3.11** is recommended.
 * **Hardware**:
     * If you want to use the SAM processing feature and achieve faster speeds (GPU acceleration), an **NVIDIA GPU** is recommended, at least GeForce RTX 3060 or equivalent performance level.
