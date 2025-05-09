@@ -89,18 +89,23 @@ class HeatmapGeneratorThread(QThread):
 
             self.log_updated.emit(f"Output folder: {self.output_folder}")
 
-            files = [f for f in os.listdir(self.input_folder)
-                     if f.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff"))]
-
-            if not files:
-                self.log_updated.emit("Warning: No image files found in input folder")
+            files_to_process = []
+            for dirpath, _, filenames in os.walk(self.input_folder):
+                for filename in filenames:
+                    if filename.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff")):
+                        full_input_path = os.path.join(dirpath, filename)
+                        relative_path = os.path.relpath(full_input_path, self.input_folder)
+                        files_to_process.append((full_input_path, relative_path))
+            
+            if not files_to_process:
+                self.log_updated.emit("Warning: No image files found in input folder or its subfolders.")
                 self.processing_finished.emit()
                 return
 
-            self.log_updated.emit(f"Found {len(files)} image files")
+            self.log_updated.emit(f"Found {len(files_to_process)} image files across all subfolders.")
             processed_count = 0
 
-            for idx, filename in enumerate(files):
+            for idx, (input_path, relative_path_str) in enumerate(files_to_process):
                 self.lock.lock()
                 try:
                     if not self.running:
@@ -110,17 +115,19 @@ class HeatmapGeneratorThread(QThread):
                     self.lock.unlock()
 
                 try:
-                    input_path = os.path.join(self.input_folder, filename)
                     self.validate_image(input_path)
+                    self.log_updated.emit(f"Processing image {idx+1}/{len(files_to_process)}: {relative_path_str}")
 
-                    self.log_updated.emit(f"Processing image {idx+1}/{len(files)}: {filename}")
-
+                    base_rel, ext_rel = os.path.splitext(relative_path_str)
+                    output_name_prefix = base_rel.replace(os.sep, "_")
+                    
                     start_time = time.time()
                     result = HeatmapGenerator.generate_heatmap(
                         input_path,
                         self.output_folder,
                         self.min_aggregate_threshold,
-                        self.max_aggregate_threshold
+                        self.max_aggregate_threshold,
+                        output_name_prefix
                     )
                     elapsed_time = time.time() - start_time
 
@@ -129,14 +136,14 @@ class HeatmapGeneratorThread(QThread):
                         self.log_updated.emit(f"Heatmap saved to: {result}")
                         self.log_updated.emit(f"Processing time: {elapsed_time:.2f} seconds")
                     elif isinstance(result, str):
-                         self.log_updated.emit(f"Error processing {filename}: {result}")
+                         self.log_updated.emit(f"Error processing {relative_path_str}: {result}")
 
                 except Exception as e:
-                    self.log_updated.emit(f"Error processing {filename}: {str(e)}")
+                    self.log_updated.emit(f"Error processing {relative_path_str}: {str(e)}")
                     continue
 
             if self.running:
-                self.log_updated.emit(f"Completed: {processed_count}/{len(files)} heatmaps generated")
+                self.log_updated.emit(f"Completed: {processed_count}/{len(files_to_process)} heatmaps generated")
 
         except Exception as e:
             self.log_updated.emit(f"Fatal error during heatmap generation: {str(e)}")
@@ -152,7 +159,7 @@ class HeatmapGeneratorThread(QThread):
 
 class HeatmapGenerator:
     @staticmethod
-    def generate_heatmap(image_path, output_folder, min_aggregate_threshold=0, max_aggregate_threshold=100):
+    def generate_heatmap(image_path, output_folder, min_aggregate_threshold=0, max_aggregate_threshold=100, output_name_prefix=None):
         try:
             image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
             if image is None:
@@ -178,8 +185,8 @@ class HeatmapGenerator:
             if image is None:
                  return f"Error: Could not load image {os.path.basename(image_path)}"
 
-            output_heatmap_bgr = np.zeros((image.shape[0], image.shape[1], 3), dtype=np.uint8)
 
+            output_heatmap_bgr = np.zeros((image.shape[0], image.shape[1], 3), dtype=np.uint8)
             aggregate_values = 100.0 - (image.astype(np.float32) / 255.0) * 100.0
 
             threshold_range = max_aggregate_threshold - min_aggregate_threshold
@@ -198,6 +205,7 @@ class HeatmapGenerator:
             num_pixels_in_range = np.count_nonzero(within_range_mask)
             if num_pixels_in_range > 0 and threshold_range > 0:
                 aggregates_in_range = aggregate_values[within_range_mask]
+                
                 normalized_in_range = (aggregates_in_range - min_aggregate_threshold) / threshold_range
                 normalized_in_range = np.clip(normalized_in_range, 0.0, 1.0)
 
@@ -208,13 +216,15 @@ class HeatmapGenerator:
                 hsv_pixels[:, 0, 0] = hue_values
                 hsv_pixels[:, 0, 1] = 255
                 hsv_pixels[:, 0, 2] = 255
-
+                
                 bgr_pixels = cv2.cvtColor(hsv_pixels, cv2.COLOR_HSV2BGR)
+                
+                output_heatmap_bgr[within_range_mask] = bgr_pixels[:,0,:]
 
-                output_heatmap_bgr[within_range_mask] = bgr_pixels[:, 0, :]
+            if output_name_prefix is None:
+                output_name_prefix = os.path.splitext(os.path.basename(image_path))[0]
 
-            base_name = os.path.splitext(os.path.basename(image_path))[0]
-            output_filename = f"{base_name}_heatmap.png"
+            output_filename = f"{output_name_prefix}_heatmap.png"
             output_path = os.path.join(output_folder, output_filename)
             cv2.imwrite(output_path, output_heatmap_bgr)
             return output_path
@@ -254,18 +264,23 @@ class ContrastEnhancementThread(QThread):
 
             self.log_updated.emit(f"Output folder: {self.output_folder}")
 
-            files = [f for f in os.listdir(self.input_folder)
-                     if f.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff"))]
+            files_to_process = []
+            for dirpath, _, filenames in os.walk(self.input_folder):
+                for filename in filenames:
+                    if filename.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff")):
+                        full_input_path = os.path.join(dirpath, filename)
+                        relative_path = os.path.relpath(full_input_path, self.input_folder)
+                        files_to_process.append((full_input_path, relative_path))
 
-            if not files:
-                self.log_updated.emit("Warning: No image files found in input folder")
+            if not files_to_process:
+                self.log_updated.emit("Warning: No image files found in input folder or its subfolders.")
                 self.processing_finished.emit()
                 return
 
-            self.log_updated.emit(f"Found {len(files)} image files")
+            self.log_updated.emit(f"Found {len(files_to_process)} image files")
             processed_count = 0
 
-            for idx, filename in enumerate(files):
+            for idx, (input_path, relative_path_str) in enumerate(files_to_process):
                 self.lock.lock()
                 try:
                     if not self.running:
@@ -275,10 +290,8 @@ class ContrastEnhancementThread(QThread):
                     self.lock.unlock()
 
                 try:
-                    input_path = os.path.join(self.input_folder, filename)
                     self.validate_image(input_path)
-
-                    self.log_updated.emit(f"Processing image {idx+1}/{len(files)}: {filename}")
+                    self.log_updated.emit(f"Processing image {idx+1}/{len(files_to_process)}: {relative_path_str}")
 
                     start_time = time.time()
                     img = Image.open(input_path)
@@ -288,22 +301,23 @@ class ContrastEnhancementThread(QThread):
                     enhancer = ImageEnhance.Contrast(img)
                     enhanced_img = enhancer.enhance(self.contrast_factor)
 
-                    base_name, ext = os.path.splitext(filename)
-                    output_filename = f"{base_name}_contrast{ext}"
+                    base_rel, ext_rel = os.path.splitext(relative_path_str)
+                    sanitized_relative_base = base_rel.replace(os.sep, "_")
+                    output_filename = f"{sanitized_relative_base}_contrast{ext_rel}"
                     output_path = os.path.join(self.output_folder, output_filename)
+                    
                     enhanced_img.save(output_path)
-
                     elapsed_time = time.time() - start_time
                     processed_count += 1
                     self.log_updated.emit(f"Enhanced image saved to: {output_path}")
                     self.log_updated.emit(f"Processing time: {elapsed_time:.2f} seconds")
 
                 except Exception as e:
-                    self.log_updated.emit(f"Error processing {filename}: {str(e)}")
+                    self.log_updated.emit(f"Error processing {relative_path_str}: {str(e)}")
                     continue
 
             if self.running:
-                self.log_updated.emit(f"Completed: {processed_count}/{len(files)} images enhanced")
+                self.log_updated.emit(f"Completed: {processed_count}/{len(files_to_process)} images enhanced")
 
         except Exception as e:
             self.log_updated.emit(f"Fatal error during contrast enhancement: {str(e)}")
@@ -334,6 +348,7 @@ class ImageProcessorThread(QThread):
         (147, 20, 255),
     ]
 
+
     def __init__(self, input_folder, output_folder,
                  min_aggregate_threshold, max_aggregate_threshold,
                  a_threshold, i_threshold, r_threshold, model_path,
@@ -362,7 +377,7 @@ class ImageProcessorThread(QThread):
             raise FileNotFoundError(f"Image not found: {image_path}")
         if not os.access(image_path, os.R_OK):
             raise PermissionError(f"No read permission for: {image_path}")
-
+    
     def run(self):
         try:
             if not os.path.exists(self.input_folder):
@@ -383,7 +398,7 @@ class ImageProcessorThread(QThread):
                         raise FileNotFoundError(f"SAM model file not found: {self.model_path}")
                 if not os.access(self.model_path, os.R_OK):
                         raise PermissionError(f"No read permission for SAM model file: {self.model_path}")
-
+                
                 model_type = "vit_h"
                 if "vit_l" in os.path.basename(self.model_path).lower():
                     model_type = "vit_l"
@@ -403,7 +418,7 @@ class ImageProcessorThread(QThread):
             except Exception as e:
                 if "checksum mismatch" in str(e):
                     raise RuntimeError(f"Failed to load SAM model: Checksum mismatch. Model file might be corrupt or incomplete. ({e})")
-                elif "unexpected keyword argument 'checkpoint'" in str(e):
+                elif "unexpected keyword argument 'checkpoint'" in str(e) or "missing" in str(e).lower() and "state_dict" in str(e).lower() :
                     raise RuntimeError(f"Failed to load SAM model: Mismatch between segment-anything library version and model file. Try updating the library. ({e})")
                 else:
                     raise RuntimeError(f"Failed to load SAM model: {str(e)}")
@@ -423,23 +438,29 @@ class ImageProcessorThread(QThread):
                 min_mask_region_area=self.sam_params.get('min_mask_region_area', 0),
                 output_mode=self.sam_params.get('output_mode', 'binary_mask')
             )
-
+            
             self.log_updated.emit("SAM parameters:")
             for key, value in self.sam_params.items():
                 self.log_updated.emit(f"  - {key}: {value}")
 
-            files = [f for f in os.listdir(self.input_folder)
-                     if f.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff"))]
 
-            if not files:
-                self.log_updated.emit("Warning: No image files found in input folder")
+            files_to_process = []
+            for dirpath, _, filenames in os.walk(self.input_folder):
+                for filename in filenames:
+                    if filename.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff")):
+                        full_input_path = os.path.join(dirpath, filename)
+                        relative_path = os.path.relpath(full_input_path, self.input_folder)
+                        files_to_process.append((full_input_path, relative_path))
+            
+            if not files_to_process:
+                self.log_updated.emit("Warning: No image files found in input folder or its subfolders.")
                 self.processing_finished.emit()
                 return
 
-            self.log_updated.emit(f"Found {len(files)} image files")
+            self.log_updated.emit(f"Found {len(files_to_process)} image files across all subfolders.")
             processed_count = 0
 
-            for idx, filename in enumerate(files):
+            for idx, (input_path, relative_path_str) in enumerate(files_to_process):
                 self.lock.lock()
                 try:
                     if not self.running:
@@ -449,32 +470,35 @@ class ImageProcessorThread(QThread):
                     self.lock.unlock()
 
                 try:
-                    input_path = os.path.join(self.input_folder, filename)
                     self.validate_image(input_path)
 
-                    file_base, file_ext = os.path.splitext(filename)
-                    output_filename = f"{file_base}_sam_processed{file_ext}"
+                    file_base_rel, file_ext_rel = os.path.splitext(relative_path_str)
+                    sanitized_relative_base = file_base_rel.replace(os.sep, "_")
+                    
+                    output_filename = f"{sanitized_relative_base}_sam_processed{file_ext_rel}"
                     output_path = os.path.join(self.output_folder, output_filename)
 
-                    self.log_updated.emit(f"Processing image {idx+1}/{len(files)}: {filename}")
+                    self.log_updated.emit(f"Processing image {idx+1}/{len(files_to_process)}: {relative_path_str}")
 
                     start_time = time.time()
-                    processed_image = self.process_image(input_path, output_path, mask_generator)
+                    processed_image_array = self.process_image(input_path, output_path, mask_generator)
                     elapsed_time = time.time() - start_time
 
-                    if processed_image is not None:
-                        self.image_processed.emit(output_path, processed_image)
+                    if processed_image_array is not None:
+                        self.image_processed.emit(output_path, processed_image_array)
                         processed_count += 1
                         self.log_updated.emit(f"Processed image saved to: {output_path}")
 
                     self.log_updated.emit(f"Processing time: {elapsed_time:.2f} seconds")
 
                 except Exception as e:
-                    self.log_updated.emit(f"Error processing {filename}: {str(e)}")
+                    self.log_updated.emit(f"Error processing {relative_path_str}: {str(e)}")
+                    if 'cuda' in str(e).lower() and torch.cuda.is_available():
+                        torch.cuda.empty_cache()
                     continue
 
             if self.running:
-                self.log_updated.emit(f"Completed: {processed_count}/{len(files)} images processed")
+                self.log_updated.emit(f"Completed: {processed_count}/{len(files_to_process)} images processed")
 
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
@@ -499,6 +523,7 @@ class ImageProcessorThread(QThread):
             if original_image_bgr is None or grayscale_image is None:
                  if tifffile:
                      try:
+                         self.log_updated.emit(f"  cv2 failed for {os.path.basename(input_path)}, trying tifffile...")
                          tiff_image = tifffile.imread(input_path)
                          if len(tiff_image.shape) == 3 and tiff_image.shape[2] >= 3:
                              original_image_bgr = cv2.cvtColor(tiff_image[:,:,:3], cv2.COLOR_RGB2BGR)
@@ -507,7 +532,7 @@ class ImageProcessorThread(QThread):
                              grayscale_image = tiff_image
                              original_image_bgr = cv2.cvtColor(grayscale_image, cv2.COLOR_GRAY2BGR)
                          else:
-                             raise ValueError("Unsupported TIFF structure")
+                             raise ValueError(f"Unsupported TIFF structure: shape {tiff_image.shape}")
 
                          if original_image_bgr.dtype != np.uint8:
                              if np.max(original_image_bgr) > 0: original_image_bgr = ((original_image_bgr / np.max(original_image_bgr)) * 255).astype(np.uint8)
@@ -515,12 +540,14 @@ class ImageProcessorThread(QThread):
                          if grayscale_image.dtype != np.uint8:
                              if np.max(grayscale_image) > 0: grayscale_image = ((grayscale_image / np.max(grayscale_image)) * 255).astype(np.uint8)
                              else: grayscale_image = grayscale_image.astype(np.uint8)
+                         
+                         self.log_updated.emit(f"  Successfully loaded {os.path.basename(input_path)} with tifffile.")
 
                      except Exception as tiff_e:
                          self.log_updated.emit(f"Warning: Failed to read {os.path.basename(input_path)} with tifffile after cv2 failed: {tiff_e}")
                          return None
                  else:
-                     self.log_updated.emit(f"Error: Failed to read image {os.path.basename(input_path)} (cv2 failed, tifffile not installed)")
+                     self.log_updated.emit(f"Error: Failed to read image {os.path.basename(input_path)} (cv2 failed, tifffile not installed or also failed)")
                      return None
 
             if original_image_bgr is None or grayscale_image is None:
@@ -528,20 +555,22 @@ class ImageProcessorThread(QThread):
                  return None
 
             if original_image_bgr.shape[0] > self.MAX_IMAGE_SIZE or original_image_bgr.shape[1] > self.MAX_IMAGE_SIZE:
-                self.log_updated.emit(f"Error: Image {os.path.basename(input_path)} too large ({original_image_bgr.shape[0]}x{original_image_bgr.shape[1]}), max allowed is {self.MAX_IMAGE_SIZE}x{self.MAX_IMAGE_SIZE}")
+                self.log_updated.emit(f"Error: Image {os.path.basename(input_path)} too large ({original_image_bgr.shape[0]}x{original_image_bgr.shape[1]}), max allowed is {self.MAX_IMAGE_SIZE}x{self.MAX_IMAGE_SIZE}. Skipping.")
                 return None
 
             self.log_updated.emit(f"  Generating masks for {os.path.basename(input_path)}...")
             try:
-                masks = mask_generator.generate(original_image_bgr)
+                image_rgb = cv2.cvtColor(original_image_bgr, cv2.COLOR_BGR2RGB)
+                masks = mask_generator.generate(image_rgb)
                 self.log_updated.emit(f"  Found {len(masks)} masks.")
             except torch.cuda.OutOfMemoryError:
-                self.log_updated.emit(f"Error: GPU memory exhausted during mask generation for {os.path.basename(input_path)}. Try smaller image or reduce SAM parameters.")
+                self.log_updated.emit(f"Error: GPU memory exhausted during mask generation for {os.path.basename(input_path)}. Try smaller image or reduce SAM parameters. Skipping this image.")
                 if torch.cuda.is_available(): torch.cuda.empty_cache()
                 return None
             except Exception as e:
                 self.log_updated.emit(f"Error during mask generation for {os.path.basename(input_path)}: {str(e)}")
                 return None
+
 
             output_image = original_image_bgr.copy()
             height, width = output_image.shape[:2]
@@ -559,7 +588,7 @@ class ImageProcessorThread(QThread):
                             self.log_updated.emit(f"  Warning: Failed to decode RLE mask ({decode_e}), skipping mask.")
                             continue
                     else:
-                        self.log_updated.emit(f"  Error: Detected RLE mask but 'pycocotools' not installed or failed to import. Cannot process this mask. Please install 'pycocotools' or select 'binary_mask' output mode.")
+                        self.log_updated.emit(f"  Error: Detected RLE mask but 'pycocotools' not installed or failed to import. Cannot process this mask. Please install 'pycocotools' or select 'binary_mask' output mode in SAM parameters.")
                         continue
 
                 elif isinstance(segmentation_data, np.ndarray):
@@ -575,8 +604,8 @@ class ImageProcessorThread(QThread):
 
                 if len(region_pixels_0_255) == 0:
                     continue
-
-                aggregate_values_0_100 = 100.0 - (region_pixels_0_255 / 255.0) * 100.0
+                
+                aggregate_values_0_100 = 100.0 - (region_pixels_0_255.astype(np.float32) / 255.0) * 100.0
 
                 initial_area = 0
                 initial_intensity = 0.0
@@ -587,16 +616,18 @@ class ImageProcessorThread(QThread):
                     initial_area = len(aggregate_values_0_100)
                     if initial_area < self.a_threshold:
                         passed_phase1 = False
-
+                
                 if passed_phase1 and self.use_intensity:
                     initial_intensity = np.sum(aggregate_values_0_100)
                     if initial_intensity < self.i_threshold:
                         passed_phase1 = False
-
+                
                 if passed_phase1 and self.use_area and self.use_intensity and initial_area > 0:
                     initial_ratio = initial_intensity / initial_area
                     if initial_ratio < self.r_threshold:
                         passed_phase1 = False
+                elif passed_phase1 and self.use_intensity and not self.use_area:
+                    pass
 
                 if passed_phase1:
                     pixels_passed_phase2_mask = (
@@ -612,8 +643,7 @@ class ImageProcessorThread(QThread):
                         final_ratio = final_intensity / final_area if final_area > 0 else 0.0
 
                         value_text_parts = []
-                        if self.use_area:
-                            value_text_parts.append(f"A:{final_area}")
+                        if self.use_area: value_text_parts.append(f"A:{final_area}")
                         if self.use_intensity:
                             value_text_parts.append(f"I:{final_intensity:.0f}")
                             if self.use_area and final_area > 0:
@@ -621,6 +651,7 @@ class ImageProcessorThread(QThread):
                             elif self.use_area:
                                 value_text_parts.append("R:N/A")
                         value_text = " ".join(value_text_parts) if value_text_parts else "N/A"
+
 
                         contours, _ = cv2.findContours(segmentation_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                         color_bgr = self.bright_colors[i % len(self.bright_colors)]
@@ -639,7 +670,7 @@ class ImageProcessorThread(QThread):
                         font_scale = 0.4
                         thickness = 1
                         (text_width, text_height), baseline = cv2.getTextSize(value_text, font, font_scale, thickness)
-
+                        
                         current_text_box = [text_x, text_y - text_height, text_width, text_height + baseline]
                         shift_amount = text_height + 2
 
@@ -647,7 +678,7 @@ class ImageProcessorThread(QThread):
                         max_attempts = 10
                         while any(self.boxes_overlap(current_text_box, box) for box in drawn_text_boxes) and attempts < max_attempts:
                             text_y += shift_amount
-                            if text_y > height - 5:
+                            if text_y > height - 5 :
                                  text_y = max(15, min(center_y, height - 5))
                                  text_y -= (attempts + 1) * shift_amount
                                  if text_y < 15:
@@ -655,11 +686,11 @@ class ImageProcessorThread(QThread):
                                      break
 
                             current_text_box = [text_x, text_y - text_height, text_width, text_height + baseline]
-                            attempts += 1
-
+                            attempts +=1
+                        
                         cv2.putText(output_image, value_text, (text_x, text_y), font, font_scale, color_bgr, thickness, cv2.LINE_AA)
                         drawn_text_boxes.append(current_text_box)
-
+            
             try:
                 cv2.imwrite(output_path, output_image)
                 return output_image
@@ -675,7 +706,10 @@ class ImageProcessorThread(QThread):
     def boxes_overlap(self, box1, box2):
         x1, y1, w1, h1 = box1
         x2, y2, w2, h2 = box2
-        if (x1 + w1 < x2 or x2 + w2 < x1 or y1 + h1 < y2 or y2 + h2 < y1):
+        if (x1 + w1 < x2 or
+            x2 + w2 < x1 or
+            y1 + h1 < y2 or
+            y2 + h2 < y1):
             return False
         return True
 
@@ -683,6 +717,7 @@ class ImageProcessorThread(QThread):
         self.lock.lock()
         try:
             self.running = False
+            self.log_updated.emit("Stop signal received by processing thread.")
         finally:
             self.lock.unlock()
 
@@ -716,7 +751,7 @@ class UsefulImageAnalysisTools(QMainWindow):
 
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setContentsMargins(0,0,0,0)
         left_layout.setSpacing(15)
 
         self.tabs = QTabWidget()
@@ -748,18 +783,15 @@ class UsefulImageAnalysisTools(QMainWindow):
             }
         """)
 
-        contrast_tab = QWidget()
-        aggregate_tab = QWidget()
-        heatmap_tab = QWidget()
-        process_tab = QWidget()
 
+        contrast_tab = QWidget()
         contrast_layout = QVBoxLayout(contrast_tab)
-        contrast_layout.setContentsMargins(10, 10, 10, 10)
+        contrast_layout.setContentsMargins(10,10,10,10)
         contrast_layout.setSpacing(15)
         contrast_file_group = QGroupBox("File Selection")
         contrast_file_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         contrast_file_layout = QVBoxLayout(contrast_file_group)
-        contrast_file_layout.setContentsMargins(10, 15, 10, 10)
+        contrast_file_layout.setContentsMargins(10,15,10,10)
         contrast_input_layout = QHBoxLayout()
         self.contrast_input_folder_label = QLabel("Input folder: Not selected")
         contrast_input_folder_btn = QPushButton("Select Input Folder")
@@ -772,7 +804,7 @@ class UsefulImageAnalysisTools(QMainWindow):
         contrast_param_group = QGroupBox("Contrast Parameters")
         contrast_param_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         contrast_param_layout = QFormLayout(contrast_param_group)
-        contrast_param_layout.setContentsMargins(10, 15, 10, 10)
+        contrast_param_layout.setContentsMargins(10,15,10,10)
         contrast_param_layout.setVerticalSpacing(10)
         contrast_param_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         self.contrast_spin = QDoubleSpinBox()
@@ -801,13 +833,14 @@ class UsefulImageAnalysisTools(QMainWindow):
         contrast_layout.addLayout(contrast_operation_layout)
         contrast_layout.addStretch()
 
+        aggregate_tab = QWidget()
         aggregate_layout = QVBoxLayout(aggregate_tab)
-        aggregate_layout.setContentsMargins(10, 10, 10, 10)
+        aggregate_layout.setContentsMargins(10,10,10,10)
         aggregate_layout.setSpacing(15)
         agg_file_group = QGroupBox("File Selection")
         agg_file_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         agg_file_layout = QVBoxLayout(agg_file_group)
-        agg_file_layout.setContentsMargins(10, 15, 10, 10)
+        agg_file_layout.setContentsMargins(10,15,10,10)
         agg_input_layout = QHBoxLayout()
         self.agg_input_folder_label = QLabel("Input folder: Not selected")
         agg_input_folder_btn = QPushButton("Select Input Folder")
@@ -827,13 +860,15 @@ class UsefulImageAnalysisTools(QMainWindow):
         aggregate_layout.addLayout(agg_operation_layout)
         aggregate_layout.addStretch()
 
+
+        heatmap_tab = QWidget()
         heatmap_layout = QVBoxLayout(heatmap_tab)
-        heatmap_layout.setContentsMargins(10, 10, 10, 10)
+        heatmap_layout.setContentsMargins(10,10,10,10)
         heatmap_layout.setSpacing(15)
         heatmap_file_group = QGroupBox("File Selection")
         heatmap_file_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         heatmap_file_layout = QVBoxLayout(heatmap_file_group)
-        heatmap_file_layout.setContentsMargins(10, 15, 10, 10)
+        heatmap_file_layout.setContentsMargins(10,15,10,10)
         heatmap_input_layout = QHBoxLayout()
         self.heatmap_input_folder_label = QLabel("Input folder: Not selected")
         heatmap_input_folder_btn = QPushButton("Select Input Folder")
@@ -846,7 +881,7 @@ class UsefulImageAnalysisTools(QMainWindow):
         heatmap_param_group = QGroupBox("Heatmap Parameters (Aggregate 0-100)")
         heatmap_param_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         heatmap_param_layout = QFormLayout(heatmap_param_group)
-        heatmap_param_layout.setContentsMargins(10, 15, 10, 10)
+        heatmap_param_layout.setContentsMargins(10,15,10,10)
         heatmap_param_layout.setVerticalSpacing(10)
         heatmap_param_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         self.heatmap_min_aggregate_spin = QSpinBox()
@@ -877,20 +912,24 @@ class UsefulImageAnalysisTools(QMainWindow):
         heatmap_layout.addLayout(heatmap_operation_layout)
         heatmap_layout.addStretch()
 
+        process_tab = QWidget()
         process_layout = QVBoxLayout(process_tab)
-        process_layout.setContentsMargins(10, 10, 10, 10)
+        process_layout.setContentsMargins(10,10,10,10)
         process_layout.setSpacing(15)
+
         process_scroll_area = QScrollArea()
         process_scroll_area.setWidgetResizable(True)
         process_scroll_widget = QWidget()
         process_scroll_layout = QVBoxLayout(process_scroll_widget)
-        process_scroll_layout.setContentsMargins(5, 5, 5, 5)
+        process_scroll_layout.setContentsMargins(5,5,5,5)
         process_scroll_layout.setSpacing(15)
+
         file_group_proc = QGroupBox("File Selection")
         file_group_proc.setStyleSheet("QGroupBox { font-weight: bold; }")
         file_layout_proc = QVBoxLayout(file_group_proc)
-        file_layout_proc.setContentsMargins(10, 15, 10, 10)
+        file_layout_proc.setContentsMargins(10,15,10,10)
         file_layout_proc.setSpacing(10)
+
         input_layout_proc = QHBoxLayout()
         self.input_folder_label = QLabel("Input folder: Not selected")
         input_folder_btn_proc = QPushButton("Select Input Folder")
@@ -899,6 +938,7 @@ class UsefulImageAnalysisTools(QMainWindow):
         input_layout_proc.addWidget(self.input_folder_label, 1)
         input_layout_proc.addWidget(input_folder_btn_proc)
         file_layout_proc.addLayout(input_layout_proc)
+
         model_layout_proc = QHBoxLayout()
         self.model_path_label = QLabel("Model file: Not selected")
         model_path_btn_proc = QPushButton("Select SAM Model File (.pth)")
@@ -909,10 +949,11 @@ class UsefulImageAnalysisTools(QMainWindow):
         file_layout_proc.addLayout(model_layout_proc)
         process_scroll_layout.addWidget(file_group_proc)
 
+
         param_group_phase1 = QGroupBox("Phase 1: Region Property Filters")
         param_group_phase1.setStyleSheet("QGroupBox { font-weight: bold; }")
         param_layout_phase1 = QFormLayout(param_group_phase1)
-        param_layout_phase1.setContentsMargins(10, 15, 10, 10)
+        param_layout_phase1.setContentsMargins(10,15,10,10)
         param_layout_phase1.setVerticalSpacing(10)
         param_layout_phase1.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
@@ -944,7 +985,8 @@ class UsefulImageAnalysisTools(QMainWindow):
         self.area_check.setChecked(True)
         self.area_check.stateChanged.connect(self.on_calculation_method_changed)
         metrics_layout.addWidget(self.area_check)
-        self.intensity_check = QCheckBox("Intensity")
+
+        self.intensity_check = QCheckBox("Intensity & Ratio")
         self.intensity_check.setStyleSheet("font-weight: normal;")
         self.intensity_check.setChecked(True)
         self.intensity_check.stateChanged.connect(self.on_calculation_method_changed)
@@ -953,10 +995,11 @@ class UsefulImageAnalysisTools(QMainWindow):
         param_layout_phase1.addRow("Enable Phase 1 Filters:", metrics_layout)
         process_scroll_layout.addWidget(param_group_phase1)
 
+
         param_group_phase2 = QGroupBox("Phase 2: Pixel Aggregate Filter (Applied to Regions Passing Phase 1)")
         param_group_phase2.setStyleSheet("QGroupBox { font-weight: bold; }")
         param_layout_phase2 = QFormLayout(param_group_phase2)
-        param_layout_phase2.setContentsMargins(10, 15, 10, 10)
+        param_layout_phase2.setContentsMargins(10,15,10,10)
         param_layout_phase2.setVerticalSpacing(10)
         param_layout_phase2.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
@@ -977,68 +1020,51 @@ class UsefulImageAnalysisTools(QMainWindow):
         sam_params_group = QGroupBox("SAM Auto Mask Generator Parameters")
         sam_params_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         sam_params_layout = QFormLayout(sam_params_group)
-        sam_params_layout.setContentsMargins(10, 15, 10, 10)
+        sam_params_layout.setContentsMargins(10,15,10,10)
         sam_params_layout.setVerticalSpacing(10)
         sam_params_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         self.points_per_side_spin = QSpinBox()
-        self.points_per_side_spin.setRange(1, 100)
-        self.points_per_side_spin.setValue(32)
+        self.points_per_side_spin.setRange(1, 100); self.points_per_side_spin.setValue(32)
         self.points_per_side_spin.setToolTip("Controls the number of points sampled along each side of the image, total points is points_per_side²")
         sam_params_layout.addRow("Points Per Side:", self.points_per_side_spin)
         self.points_per_batch_spin = QSpinBox()
-        self.points_per_batch_spin.setRange(1, 1000)
-        self.points_per_batch_spin.setValue(64)
+        self.points_per_batch_spin.setRange(1, 1000); self.points_per_batch_spin.setValue(64)
         self.points_per_batch_spin.setToolTip("Sets the number of points processed by the model at once, higher values may process faster but use more GPU memory")
         sam_params_layout.addRow("Points Per Batch:", self.points_per_batch_spin)
         self.pred_iou_thresh_spin = QDoubleSpinBox()
-        self.pred_iou_thresh_spin.setRange(0.0, 1.0)
-        self.pred_iou_thresh_spin.setSingleStep(0.01)
-        self.pred_iou_thresh_spin.setValue(0.88)
+        self.pred_iou_thresh_spin.setRange(0.0, 1.0); self.pred_iou_thresh_spin.setSingleStep(0.01); self.pred_iou_thresh_spin.setValue(0.88)
         self.pred_iou_thresh_spin.setToolTip("Threshold for filtering using the model's predicted mask quality")
         sam_params_layout.addRow("Pred IoU Thresh:", self.pred_iou_thresh_spin)
         self.stability_score_thresh_spin = QDoubleSpinBox()
-        self.stability_score_thresh_spin.setRange(0.0, 1.0)
-        self.stability_score_thresh_spin.setSingleStep(0.01)
-        self.stability_score_thresh_spin.setValue(0.95)
+        self.stability_score_thresh_spin.setRange(0.0, 1.0); self.stability_score_thresh_spin.setSingleStep(0.01); self.stability_score_thresh_spin.setValue(0.95)
         self.stability_score_thresh_spin.setToolTip("Threshold for filtering using the mask's stability under changes in binarization threshold")
         sam_params_layout.addRow("Stability Score Thresh:", self.stability_score_thresh_spin)
         self.stability_score_offset_spin = QDoubleSpinBox()
-        self.stability_score_offset_spin.setRange(0.0, 10.0)
-        self.stability_score_offset_spin.setSingleStep(0.1)
-        self.stability_score_offset_spin.setValue(1.0)
+        self.stability_score_offset_spin.setRange(0.0, 10.0); self.stability_score_offset_spin.setSingleStep(0.1); self.stability_score_offset_spin.setValue(1.0)
         self.stability_score_offset_spin.setToolTip("Offset used when calculating the stability score")
         sam_params_layout.addRow("Stability Score Offset:", self.stability_score_offset_spin)
         self.box_nms_thresh_spin = QDoubleSpinBox()
-        self.box_nms_thresh_spin.setRange(0.0, 1.0)
-        self.box_nms_thresh_spin.setSingleStep(0.01)
-        self.box_nms_thresh_spin.setValue(0.7)
+        self.box_nms_thresh_spin.setRange(0.0, 1.0); self.box_nms_thresh_spin.setSingleStep(0.01); self.box_nms_thresh_spin.setValue(0.7)
         self.box_nms_thresh_spin.setToolTip("IoU threshold for Non-Maximum Suppression (NMS) used to filter duplicate masks based on bounding boxes")
         sam_params_layout.addRow("Box NMS Thresh:", self.box_nms_thresh_spin)
         self.crop_n_layers_spin = QSpinBox()
-        self.crop_n_layers_spin.setRange(0, 5)
-        self.crop_n_layers_spin.setValue(0)
+        self.crop_n_layers_spin.setRange(0, 5); self.crop_n_layers_spin.setValue(0)
         self.crop_n_layers_spin.setToolTip("If >0, the image will be cropped into multiple layers for processing (can use more memory but handle larger images/improve detection of small objects)")
         sam_params_layout.addRow("Crop N Layers:", self.crop_n_layers_spin)
         self.crop_nms_thresh_spin = QDoubleSpinBox()
-        self.crop_nms_thresh_spin.setRange(0.0, 1.0)
-        self.crop_nms_thresh_spin.setSingleStep(0.01)
-        self.crop_nms_thresh_spin.setValue(0.7)
+        self.crop_nms_thresh_spin.setRange(0.0, 1.0); self.crop_nms_thresh_spin.setSingleStep(0.01); self.crop_nms_thresh_spin.setValue(0.7)
         self.crop_nms_thresh_spin.setToolTip("IoU threshold for applying NMS between masks generated from different crops")
         sam_params_layout.addRow("Crop NMS Thresh:", self.crop_nms_thresh_spin)
         self.crop_overlap_ratio_spin = QDoubleSpinBox()
-        self.crop_overlap_ratio_spin.setRange(0.0, 1.0)
-        self.crop_overlap_ratio_spin.setSingleStep(0.01)
-        self.crop_overlap_ratio_spin.setValue(round(512/1500, 3))
+        self.crop_overlap_ratio_spin.setRange(0.0, 1.0); self.crop_overlap_ratio_spin.setSingleStep(0.01); self.crop_overlap_ratio_spin.setValue(round(512/1500, 3))
         self.crop_overlap_ratio_spin.setToolTip("Sets the degree of overlap between crops when Crop N Layers > 0")
         sam_params_layout.addRow("Crop Overlap Ratio:", self.crop_overlap_ratio_spin)
         self.crop_n_points_downscale_factor_spin = QSpinBox()
-        self.crop_n_points_downscale_factor_spin.setRange(1, 10)
-        self.crop_n_points_downscale_factor_spin.setValue(1)
+        self.crop_n_points_downscale_factor_spin.setRange(1, 10); self.crop_n_points_downscale_factor_spin.setValue(1)
         self.crop_n_points_downscale_factor_spin.setToolTip("Downscales the number of points sampled per crop layer (if Crop N Layers > 0)")
         sam_params_layout.addRow("Crop Points Downscale Factor:", self.crop_n_points_downscale_factor_spin)
         self.min_mask_region_area_spin = QSpinBox()
-        self.min_mask_region_area_spin.setRange(0, 100000)
-        self.min_mask_region_area_spin.setValue(0)
+        self.min_mask_region_area_spin.setRange(0, 100000); self.min_mask_region_area_spin.setValue(0)
         self.min_mask_region_area_spin.setToolTip("If >0, post-processing will be applied to remove small disconnected regions within masks or holes smaller than this area (pixels)")
         sam_params_layout.addRow("Min Mask Region Area:", self.min_mask_region_area_spin)
         self.output_mode_combo = QComboBox()
@@ -1051,6 +1077,7 @@ class UsefulImageAnalysisTools(QMainWindow):
             "Note: RLE modes require 'pycocotools' to be installed for processing within this tool."
         )
         sam_params_layout.addRow("Output Mode:", self.output_mode_combo)
+
         reset_sam_params_btn = QPushButton("Reset SAM Parameters to Default")
         reset_sam_params_btn.setStyleSheet(self.get_button_style("grey"))
         reset_sam_params_btn.clicked.connect(self.reset_sam_params)
@@ -1062,14 +1089,17 @@ class UsefulImageAnalysisTools(QMainWindow):
         self.batch_process_btn.setStyleSheet(self.get_button_style("blue"))
         self.batch_process_btn.setEnabled(False)
         self.batch_process_btn.clicked.connect(self.batch_process_images)
+
         self.stop_btn = QPushButton("Stop Processing")
         self.stop_btn.setStyleSheet(self.get_button_style("red"))
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.stop_processing)
+
         self.open_proc_output_btn = QPushButton("Open Output Folder")
         self.open_proc_output_btn.setStyleSheet(self.get_button_style("grey"))
         self.open_proc_output_btn.setEnabled(False)
         self.open_proc_output_btn.clicked.connect(self.open_processing_output_folder)
+
         operation_layout_proc.addWidget(self.batch_process_btn)
         operation_layout_proc.addWidget(self.stop_btn)
         operation_layout_proc.addWidget(self.open_proc_output_btn)
@@ -1087,54 +1117,77 @@ class UsefulImageAnalysisTools(QMainWindow):
         left_layout.addWidget(self.tabs)
         main_layout.addWidget(left_widget, 1)
 
+
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setContentsMargins(0,0,0,0)
         right_layout.setSpacing(15)
 
         contrast_log_group = QGroupBox("Contrast Enhancement Log")
         contrast_log_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         contrast_log_layout = QVBoxLayout(contrast_log_group)
-        contrast_log_layout.setContentsMargins(10, 15, 10, 10)
+        contrast_log_layout.setContentsMargins(10,15,10,10)
         self.contrast_log_text = QTextEdit()
         self.contrast_log_text.setStyleSheet(self.get_log_style())
         self.contrast_log_text.setReadOnly(True)
         contrast_log_layout.addWidget(self.contrast_log_text)
         right_layout.addWidget(contrast_log_group)
+        contrast_log_group.setVisible(self.tabs.currentIndex() == self.tabs.indexOf(contrast_tab))
+
 
         aggregate_log_group = QGroupBox("Aggregate Analysis Log")
         aggregate_log_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         aggregate_log_layout = QVBoxLayout(aggregate_log_group)
-        aggregate_log_layout.setContentsMargins(10, 15, 10, 10)
+        aggregate_log_layout.setContentsMargins(10,15,10,10)
         self.aggregate_log_text = QTextEdit()
         self.aggregate_log_text.setStyleSheet(self.get_log_style())
         self.aggregate_log_text.setReadOnly(True)
         aggregate_log_layout.addWidget(self.aggregate_log_text)
         right_layout.addWidget(aggregate_log_group)
+        aggregate_log_group.setVisible(self.tabs.currentIndex() == self.tabs.indexOf(aggregate_tab))
+
 
         heatmap_log_group = QGroupBox("Heatmap Generation Log")
         heatmap_log_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         heatmap_log_layout = QVBoxLayout(heatmap_log_group)
-        heatmap_log_layout.setContentsMargins(10, 15, 10, 10)
+        heatmap_log_layout.setContentsMargins(10,15,10,10)
         self.heatmap_log_text = QTextEdit()
         self.heatmap_log_text.setStyleSheet(self.get_log_style())
         self.heatmap_log_text.setReadOnly(True)
         heatmap_log_layout.addWidget(self.heatmap_log_text)
         right_layout.addWidget(heatmap_log_group)
+        heatmap_log_group.setVisible(self.tabs.currentIndex() == self.tabs.indexOf(heatmap_tab))
+
 
         log_group_proc = QGroupBox("SAM Processing Log")
         log_group_proc.setStyleSheet("QGroupBox { font-weight: bold; }")
         log_layout_proc = QVBoxLayout(log_group_proc)
-        log_layout_proc.setContentsMargins(10, 15, 10, 10)
+        log_layout_proc.setContentsMargins(10,15,10,10)
         self.log_text = QTextEdit()
         self.log_text.setStyleSheet(self.get_log_style())
         self.log_text.setReadOnly(True)
         log_layout_proc.addWidget(self.log_text)
         right_layout.addWidget(log_group_proc)
+        log_group_proc.setVisible(self.tabs.currentIndex() == self.tabs.indexOf(process_tab))
+
+        self.log_groups = {
+            self.tabs.indexOf(contrast_tab): contrast_log_group,
+            self.tabs.indexOf(aggregate_tab): aggregate_log_group,
+            self.tabs.indexOf(heatmap_tab): heatmap_log_group,
+            self.tabs.indexOf(process_tab): log_group_proc,
+        }
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+
 
         main_layout.addWidget(right_widget, 1)
 
         self.update_button_states()
+        self.on_tab_changed(self.tabs.currentIndex())
+
+    def on_tab_changed(self, index):
+        for tab_idx, group_box in self.log_groups.items():
+            group_box.setVisible(tab_idx == index)
+
 
     def get_button_style(self, color="blue"):
         base_style = """
@@ -1157,6 +1210,7 @@ class UsefulImageAnalysisTools(QMainWindow):
             "grey": ("#607d8b", "#455a64"),
         }
         bg_color, hover_color = colors.get(color, colors["blue"])
+        
         return base_style + f"""
             QPushButton {{ background-color: {bg_color}; }}
             QPushButton:hover:!disabled {{ background-color: {hover_color}; }}
@@ -1168,14 +1222,14 @@ class UsefulImageAnalysisTools(QMainWindow):
                 border: 1px solid #cccccc;
                 border-radius: 4px;
                 padding: 5px;
-                font-family: Consolas, Courier New, monospace;
+                font-family: Consolas, 'Courier New', monospace;
                 background-color: #f8f8f8;
             }
         """
-
+    
     def get_processing_output_folder_path(self):
         if not self.input_folder: return None
-
+        
         input_folder_name = os.path.basename(os.path.normpath(self.input_folder))
         parent_dir = os.path.dirname(os.path.normpath(self.input_folder))
 
@@ -1186,10 +1240,10 @@ class UsefulImageAnalysisTools(QMainWindow):
             param_parts.append(f"Int={self.i_threshold_spin.value():.0f}")
             param_parts.append(f"Ratio={self.r_threshold_spin.value():.1f}")
         param_parts.append(f"Agg={self.min_aggregate_spin.value()}-{self.max_aggregate_spin.value()}")
-
+        
         param_str = " ".join(param_parts)
         output_folder_name = f"{input_folder_name}_SAM_Output [{param_str}]"
-
+        
         return os.path.join(parent_dir, output_folder_name)
 
     def get_heatmap_output_folder_path(self):
@@ -1209,6 +1263,7 @@ class UsefulImageAnalysisTools(QMainWindow):
         output_folder_name = f"{input_folder_name}_Contrast_Output [Factor={contrast_factor:.1f}]"
         return os.path.join(parent_dir, output_folder_name)
 
+
     def reset_sam_params(self):
         self.points_per_side_spin.setValue(32)
         self.points_per_batch_spin.setValue(64)
@@ -1223,6 +1278,7 @@ class UsefulImageAnalysisTools(QMainWindow):
         self.min_mask_region_area_spin.setValue(0)
         self.output_mode_combo.setCurrentText("binary_mask")
         self.log_text.append("SAM parameters reset to default.")
+
 
     def get_sam_params(self):
         return {
@@ -1239,12 +1295,12 @@ class UsefulImageAnalysisTools(QMainWindow):
             "min_mask_region_area": self.min_mask_region_area_spin.value(),
             "output_mode": self.output_mode_combo.currentText()
         }
-
+    
     def select_input_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Input Folder (Processing)")
         if folder:
             self.input_folder = folder
-            self.input_folder_label.setText(f"Input: ...{folder[-40:]}")
+            self.input_folder_label.setText(f"Input: ...{folder[-40:]}" if len(folder) > 43 else f"Input: {folder}")
             self.update_button_states()
 
     def select_model_file(self):
@@ -1258,14 +1314,14 @@ class UsefulImageAnalysisTools(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select Input Folder (Aggregate Analysis)")
         if folder:
             self.bright_input_folder = folder
-            self.agg_input_folder_label.setText(f"Input: ...{folder[-40:]}")
+            self.agg_input_folder_label.setText(f"Input: ...{folder[-40:]}" if len(folder) > 43 else f"Input: {folder}")
             self.analyze_agg_btn.setEnabled(True)
 
     def select_heatmap_input_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Input Folder (Heatmap)")
         if folder:
             self.heatmap_input_folder = folder
-            self.heatmap_input_folder_label.setText(f"Input: ...{folder[-40:]}")
+            self.heatmap_input_folder_label.setText(f"Input: ...{folder[-40:]}" if len(folder) > 43 else f"Input: {folder}")
             self.generate_heatmap_btn.setEnabled(True)
             self.open_heatmap_output_btn.setEnabled(True)
 
@@ -1273,9 +1329,10 @@ class UsefulImageAnalysisTools(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select Input Folder (Contrast)")
         if folder:
             self.contrast_input_folder = folder
-            self.contrast_input_folder_label.setText(f"Input: ...{folder[-40:]}")
+            self.contrast_input_folder_label.setText(f"Input: ...{folder[-40:]}" if len(folder) > 43 else f"Input: {folder}")
             self.enhance_contrast_btn.setEnabled(True)
             self.open_contrast_output_btn.setEnabled(True)
+
 
     def on_calculation_method_changed(self, state):
         if not self.area_check.isChecked() and not self.intensity_check.isChecked():
@@ -1286,7 +1343,7 @@ class UsefulImageAnalysisTools(QMainWindow):
              elif sender == self.intensity_check and state == Qt.CheckState.Unchecked.value:
                  self.intensity_check.setChecked(True)
                  QMessageBox.warning(self, "Selection Required", "At least one Phase 1 filter method (Area or Intensity/Ratio) must be selected.")
-
+        
         self.update_button_states()
 
     def update_button_states(self):
@@ -1294,6 +1351,7 @@ class UsefulImageAnalysisTools(QMainWindow):
         model_ready = bool(self.model_path)
         calculation_selected = self.area_check.isChecked() or self.intensity_check.isChecked()
         proc_all_ready = proc_input_ready and model_ready and calculation_selected
+        
         self.batch_process_btn.setEnabled(proc_all_ready)
         self.open_proc_output_btn.setEnabled(proc_input_ready)
 
@@ -1306,13 +1364,13 @@ class UsefulImageAnalysisTools(QMainWindow):
         self.analyze_agg_btn.setEnabled(bool(self.bright_input_folder))
 
 
-    def open_folder(self, folder_path, folder_type_name):
+    def open_folder(self, folder_path, folder_type_name="Output"):
         if folder_path:
             if not os.path.exists(folder_path):
                  try:
                      os.makedirs(folder_path)
                  except OSError as e:
-                     QMessageBox.warning(self, "Error", f"Could not create or access {folder_type_name} output folder:\n{folder_path}\nError: {e}")
+                     QMessageBox.warning(self, "Error", f"Could not create or access {folder_type_name} folder:\n{folder_path}\nError: {e}")
                      return
             try:
                 if sys.platform == "win32":
@@ -1322,37 +1380,37 @@ class UsefulImageAnalysisTools(QMainWindow):
                 else:
                     os.system(f"xdg-open \"{folder_path}\"")
             except Exception as e:
-                QMessageBox.warning(self, "Error", f"Could not open {folder_type_name} output folder:\n{folder_path}\nError: {e}")
+                QMessageBox.warning(self, "Error", f"Could not open {folder_type_name} folder:\n{folder_path}\nError: {e}")
         else:
-            QMessageBox.information(self, "Info", f"{folder_type_name} output folder path could not be determined (process might need to run first or input folder not selected).")
+            QMessageBox.information(self, "Info", f"{folder_type_name} folder path could not be determined (process might need to run first or input folder not selected).")
 
     def open_processing_output_folder(self):
         if self.input_folder:
             output_folder = self.get_processing_output_folder_path()
-            self.open_folder(output_folder, "Processing")
+            self.open_folder(output_folder, "Processing Output")
         else:
-             QMessageBox.warning(self, "Input Required", "Please select an input folder first.")
+             QMessageBox.warning(self, "Input Required", "Please select an input folder for SAM Processing first.")
 
     def open_heatmap_output_folder(self):
         if self.heatmap_input_folder:
             output_folder = self.get_heatmap_output_folder_path()
-            self.open_folder(output_folder, "Heatmap")
+            self.open_folder(output_folder, "Heatmap Output")
         else:
-             QMessageBox.warning(self, "Input Required", "Please select an input folder for heatmaps first.")
+             QMessageBox.warning(self, "Input Required", "Please select an input folder for Heatmap Generation first.")
 
     def open_contrast_output_folder(self):
         if self.contrast_input_folder:
             output_folder = self.get_contrast_output_folder_path()
-            self.open_folder(output_folder, "Contrast")
+            self.open_folder(output_folder, "Contrast Output")
         else:
-             QMessageBox.warning(self, "Input Required", "Please select an input folder for contrast enhancement first.")
+             QMessageBox.warning(self, "Input Required", "Please select an input folder for Contrast Enhancement first.")
 
 
     def batch_process_images(self):
         min_agg = self.min_aggregate_spin.value()
         max_agg = self.max_aggregate_spin.value()
-        if min_agg > max_agg or (min_agg == max_agg and min_agg != 100):
-            QMessageBox.warning(self, "Invalid Aggregate Thresholds", "Min Aggregate Threshold must be less than or equal to Max Aggregate Threshold (equality allowed only if both are 100).")
+        if min_agg > max_agg or (min_agg == max_agg and min_agg != 100 and max_agg != 100):
+            QMessageBox.warning(self, "Invalid Aggregate Thresholds", "Min Aggregate Threshold must be less than or equal to Max Aggregate Threshold (equality allowed only if both are 100 or both 0, etc.).")
             return
 
         if not self.area_check.isChecked() and not self.intensity_check.isChecked():
@@ -1362,8 +1420,8 @@ class UsefulImageAnalysisTools(QMainWindow):
              QMessageBox.warning(self, "Input Required", "Please select both an input folder and a SAM model file.")
              return
 
-        self.log_text.append("-" * 20 + " New Processing Job " + "-" * 20)
-        self.log_text.append("Starting image processing...")
+        self.log_text.append("-" * 20 + " New SAM Processing Job " + "-" * 20)
+        self.log_text.append("Starting image processing with SAM...")
         self.batch_process_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
 
@@ -1380,8 +1438,8 @@ class UsefulImageAnalysisTools(QMainWindow):
              self.update_button_states()
              self.stop_btn.setEnabled(False)
              return
-
-        self.log_text.append(f"Output folder: {output_folder}")
+        
+        self.log_text.append(f"Output folder will be: {output_folder}")
         self.log_text.append(f"Using SAM parameters: {sam_params}")
         self.log_text.append(f"Phase 1 Filters: Area={'Yes' if use_area else 'No'}, Intensity/Ratio={'Yes' if use_intensity else 'No'}")
         self.log_text.append(f"Phase 1 Thresholds: Min Area (A)={a_threshold}, Min Intensity (I)={i_threshold:.0f}, Min Ratio (R)={r_threshold:.1f}")
@@ -1389,10 +1447,10 @@ class UsefulImageAnalysisTools(QMainWindow):
 
 
         if self.process_thread and self.process_thread.isRunning():
-            self.log_text.append("Stopping previous processing job...")
+            self.log_text.append("Stopping previous SAM processing job...")
             self.process_thread.stop()
             self.process_thread.wait()
-            self.log_text.append("Previous job stopped.")
+            self.log_text.append("Previous SAM job stopped.")
 
         self.process_thread = ImageProcessorThread(
             self.input_folder,
@@ -1451,8 +1509,8 @@ class UsefulImageAnalysisTools(QMainWindow):
     def generate_heatmaps(self):
         min_thresh = self.heatmap_min_aggregate_spin.value()
         max_thresh = self.heatmap_max_aggregate_spin.value()
-        if min_thresh > max_thresh or (min_thresh == max_thresh and min_thresh != 100):
-             QMessageBox.warning(self, "Invalid Thresholds", "Min Aggregate Threshold must be less than or equal to Max Aggregate Threshold (equality allowed only if both are 100).")
+        if min_thresh > max_thresh or (min_thresh == max_thresh and min_thresh != 100 and max_thresh != 100 and min_thresh !=0 and max_thresh !=0):
+             QMessageBox.warning(self, "Invalid Thresholds", "Min Aggregate Threshold must be less than or equal to Max Aggregate Threshold (equality allowed only if both are 100, or both 0 etc.).")
              return
 
         if not self.heatmap_input_folder:
@@ -1472,7 +1530,7 @@ class UsefulImageAnalysisTools(QMainWindow):
             return
 
         self.heatmap_log_text.append(f"Output folder: {output_folder}")
-        self.heatmap_log_text.append(f"Aggregate Range: [{min_thresh}-{max_thresh}]")
+        self.heatmap_log_text.append(f"Aggregate Range for Gradient: [{min_thresh}-{max_thresh}]")
 
 
         if self.heatmap_thread and self.heatmap_thread.isRunning():
@@ -1505,34 +1563,39 @@ class UsefulImageAnalysisTools(QMainWindow):
             self.update_aggregate_log(f"Error: No read permission for directory '{folder_path}'.")
             return
 
-        files = [f for f in os.listdir(folder_path)
-                 if f.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff"))]
-
-        if not files:
-            self.update_aggregate_log("No image files found in selected folder.")
+        files_to_analyze = []
+        for dirpath, _, filenames in os.walk(folder_path):
+            for filename in filenames:
+                if filename.lower().endswith((".png", ".jpg", ".jpeg", ".tif", ".tiff")):
+                    full_path = os.path.join(dirpath, filename)
+                    relative_path = os.path.relpath(full_path, folder_path)
+                    files_to_analyze.append({'full_path': full_path, 'relative_path': relative_path})
+        
+        if not files_to_analyze:
+            self.update_aggregate_log("No image files found in selected folder or its subfolders.")
             return
 
         image_count = 0
         error_count = 0
-        self.update_aggregate_log(f"Analyzing aggregates in: {folder_path}")
+        self.update_aggregate_log(f"Analyzing aggregates in: {folder_path} (including subfolders)")
         self.update_aggregate_log("-" * 50)
-        files.sort()
+        files_to_analyze.sort(key=lambda x: x['relative_path']) 
 
-        for filename in files:
-            file_path = os.path.join(folder_path, filename)
-            if os.path.isfile(file_path):
-                try:
-                    aggregate_val = ImageAggregateAnalyzer.calculate_aggregate(file_path)
-                    if isinstance(aggregate_val, float):
-                        self.update_aggregate_log(f"{filename}: Aggregate = {aggregate_val:.2f}")
-                        image_count += 1
-                    else:
-                        self.update_aggregate_log(f"{filename}: {aggregate_val}")
-                        error_count += 1
-                except Exception as e:
-                    self.update_aggregate_log(f"{filename}: Error - {str(e)}")
+        for file_info in files_to_analyze:
+            file_path = file_info['full_path']
+            display_name = file_info['relative_path']
+            try:
+                aggregate_val = ImageAggregateAnalyzer.calculate_aggregate(file_path)
+                if isinstance(aggregate_val, float):
+                    self.update_aggregate_log(f"{display_name}: Aggregate = {aggregate_val:.2f}")
+                    image_count += 1
+                else:
+                    self.update_aggregate_log(f"{display_name}: {aggregate_val}")
                     error_count += 1
-                QApplication.processEvents()
+            except Exception as e:
+                self.update_aggregate_log(f"{display_name}: Error - {str(e)}")
+                error_count += 1
+            QApplication.processEvents()
 
         self.update_aggregate_log("-" * 50)
         self.update_aggregate_log(f"Processed {image_count} image(s) successfully.")
@@ -1542,11 +1605,11 @@ class UsefulImageAnalysisTools(QMainWindow):
 
     def stop_processing(self):
         if self.process_thread and self.process_thread.isRunning():
-            self.log_text.append("Attempting to stop processing...")
+            self.log_text.append("Attempting to stop SAM processing...")
             self.process_thread.stop()
             self.stop_btn.setEnabled(False)
         else:
-             self.log_text.append("No processing job is currently running.")
+             self.log_text.append("No SAM processing job is currently running.")
 
     def stop_heatmap_generation(self):
         if self.heatmap_thread and self.heatmap_thread.isRunning():
@@ -1585,19 +1648,19 @@ class UsefulImageAnalysisTools(QMainWindow):
         scrollbar.setValue(scrollbar.maximum())
 
     def processing_finished(self):
-        self.log_text.append("Processing complete.")
+        self.log_text.append("SAM Processing complete or stopped.")
         self.update_button_states()
         self.stop_btn.setEnabled(False)
         self.process_thread = None
 
     def heatmap_generation_finished(self):
-        self.heatmap_log_text.append("Heatmap generation complete.")
+        self.heatmap_log_text.append("Heatmap generation complete or stopped.")
         self.generate_heatmap_btn.setEnabled(bool(self.heatmap_input_folder))
         self.stop_heatmap_btn.setEnabled(False)
         self.heatmap_thread = None
 
     def contrast_enhancement_finished(self):
-        self.contrast_log_text.append("Contrast enhancement complete.")
+        self.contrast_log_text.append("Contrast enhancement complete or stopped.")
         self.enhance_contrast_btn.setEnabled(bool(self.contrast_input_folder))
         self.stop_contrast_btn.setEnabled(False)
         self.contrast_thread = None
